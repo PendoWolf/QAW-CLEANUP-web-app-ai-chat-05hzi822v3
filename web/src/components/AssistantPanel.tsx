@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { trackEvent } from "../analytics/pendo";
 import { sendAssistantMessage, type ChatMessage } from "../api/assistant";
 
 const SUGGESTED_PROMPTS = [
@@ -32,9 +33,18 @@ export function AssistantPanel({ onClose }: { onClose: () => void }) {
     setDraft("");
     setError(null);
     setThinking(true);
+    const sentAt = performance.now();
     try {
       const reply = await sendAssistantMessage(conversationId, conversation);
       setMessages((current) => [...current, reply.message]);
+      // The API returned the assistant's reply and it appears in the conversation.
+      trackEvent("Assistant reply received", {
+        response_time_ms: Math.round(performance.now() - sentAt),
+        conversation_messages: conversation.length + 1,
+        first_reply: messages.length === 0,
+        suggested_prompt: SUGGESTED_PROMPTS.includes(prompt),
+        reply_length: reply.message.content.length,
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {

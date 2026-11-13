@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { trackEvent } from "../analytics/pendo";
 import { authApi, type Account, type User } from "../api/auth";
 import { clearSession, readSession, saveSession } from "./session";
 
@@ -21,14 +22,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signedIn = await authApi.signIn(email, password);
     saveSession(signedIn);
     setSession(signedIn);
+    // The API accepted the credentials and returned the user and their account.
+    trackEvent("Signed in", {
+      user_role: signedIn.user.role,
+      account_plan: signedIn.account.plan,
+    });
   }, []);
 
   const signOut = useCallback(async () => {
+    const ending = readSession();
+    let loggedOut = false;
     try {
       await authApi.signOut();
+      loggedOut = true;
     } finally {
       clearSession();
       setSession(null);
+      // The session is cleared after the logout call, whether or not the API answered.
+      trackEvent("Signed out", {
+        user_role: ending?.user.role ?? "unknown",
+        account_plan: ending?.account.plan ?? "unknown",
+        logout_call_succeeded: loggedOut,
+      });
     }
   }, []);
 
